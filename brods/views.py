@@ -19,7 +19,6 @@ class CourseViewSet(viewsets.ModelViewSet):
             return CourseDetailSerializer
         return CourseSerializer
 
-
     def get_queryset(self):
         queryset = super().get_queryset()
         if (

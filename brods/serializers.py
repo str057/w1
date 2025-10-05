@@ -10,7 +10,6 @@ class LessonSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-
 class LessonListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lesson

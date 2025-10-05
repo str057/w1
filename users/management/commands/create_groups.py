@@ -6,7 +6,6 @@ from django.contrib.auth.models import Group, Permission
 class Command(BaseCommand):
     help = "Create default user groups"
 
-
     def handle(self, *args, **options):
         # Создаем группу модераторов
         moderator_group, created = Group.objects.get_or_create(name="moderators")

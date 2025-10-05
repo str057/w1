@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 class Command(BaseCommand):
     help = "Заполняет базу данных тестовыми платежами"
 
-
     def handle(self, *args, **kwargs):
         users = User.objects.all()
         courses = Course.objects.all()

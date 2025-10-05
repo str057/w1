@@ -8,7 +8,6 @@ router.register(r"courses", CourseViewSet)
 router.register(r"lessons", LessonViewSet)
 
 
-
 urlpatterns = [
     path("", include(router.urls)),
 ]

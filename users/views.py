@@ -17,7 +17,6 @@ from users.serializers import (
 from users.permissions import IsModerator, IsOwner, IsProfileOwner
 
 
-
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     permission_classes = [permissions.IsAuthenticated]
