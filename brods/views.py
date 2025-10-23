@@ -42,7 +42,6 @@ class CourseViewSet(viewsets.ModelViewSet):
         return [permission() for permission in self.permission_classes]
 
     def create(self, request, *args, **kwargs):
-        # Явная проверка для модераторов
         if request.user.groups.filter(name="moderators").exists():
             return Response(
                 {"detail": "Модераторы не могут создавать курсы"},
@@ -54,8 +53,6 @@ class CourseViewSet(viewsets.ModelViewSet):
         serializer.save(owner=self.request.user)
 
     def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        # Явная проверка для модераторов при удалении
         if request.user.groups.filter(name="moderators").exists():
             return Response(
                 {"detail": "Модераторы не могут удалять курсы"},
@@ -95,7 +92,6 @@ class LessonViewSet(viewsets.ModelViewSet):
         return [permission() for permission in self.permission_classes]
 
     def create(self, request, *args, **kwargs):
-        # Явная проверка для модераторов
         if request.user.groups.filter(name="moderators").exists():
             return Response(
                 {"detail": "Модераторы не могут создавать уроки"},
@@ -107,7 +103,6 @@ class LessonViewSet(viewsets.ModelViewSet):
         serializer.save(owner=self.request.user)
 
     def destroy(self, request, *args, **kwargs):
-        # Явная проверка для модераторов при удалении
         if request.user.groups.filter(name="moderators").exists():
             return Response(
                 {"detail": "Модераторы не могут удалять уроки"},

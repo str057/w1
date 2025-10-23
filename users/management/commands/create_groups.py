@@ -1,6 +1,5 @@
-import os
 from django.core.management.base import BaseCommand
-from django.contrib.auth.models import Group, Permission
+from django.contrib.auth.models import Group
 
 
 class Command(BaseCommand):
@@ -15,4 +14,6 @@ class Command(BaseCommand):
                 self.style.SUCCESS("✅ Группа модераторов успешно создана")
             )
         else:
-            self.stdout.write(self.style.WARNING("ℹ️ Группа модераторов уже существует"))
+            self.stdout.write(
+                self.style.WARNING("ℹ️ Группа модераторов уже существует")
+            )
