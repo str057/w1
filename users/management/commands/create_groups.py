@@ -14,6 +14,4 @@ class Command(BaseCommand):
                 self.style.SUCCESS("✅ Группа модераторов успешно создана")
             )
         else:
-            self.stdout.write(
-                self.style.WARNING("ℹ️ Группа модераторов уже существует")
-            )
+            self.stdout.write(self.style.WARNING("ℹ️ Группа модераторов уже существует"))

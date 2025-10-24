@@ -1,6 +1,44 @@
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from users.models import Payment, User
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    email = serializers.EmailField(required=True)
+    password = serializers.CharField(required=True)
+
+    def validate(self, attrs):
+        # Используем email вместо username
+        email = attrs.get("email")
+        password = attrs.get("password")
+
+        # Ищем пользователя по email
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError(
+                "No user with this email and password was found."
+            )
+
+        # Проверяем пароль
+        if not user.check_password(password):
+            raise serializers.ValidationError(
+                "No user with this email and password was found."
+            )
+
+        # Устанавливаем username для родительского класса
+        attrs["username"] = user.email
+
+        data = super().validate(attrs)
+        return data
+
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        # Добавляем кастомные claims
+        token["email"] = user.email
+        return token
 
 
 class UserRegisterSerializer(serializers.ModelSerializer):

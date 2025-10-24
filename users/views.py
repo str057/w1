@@ -14,6 +14,12 @@ from users.serializers import (
     UserSerializer,
 )
 from users.permissions import IsModerator, IsOwner, IsProfileOwner
+from rest_framework_simplejwt.views import TokenObtainPairView
+from users.serializers import CustomTokenObtainPairSerializer
+
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
 
 
 class UserViewSet(viewsets.ModelViewSet):
