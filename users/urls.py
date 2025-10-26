@@ -3,13 +3,13 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView, TokenObtainPairView
 
 from users.apps import UsersConfig
-from users.views import UserViewSet, PaymentViewSet, UserProfileView, LoginView
+from users.views import UserViewSet, UserProfileView, LoginView
 
 app_name = UsersConfig.name
 
 router = DefaultRouter()
 router.register(r"users", UserViewSet, basename="users")
-router.register(r"payments", PaymentViewSet, basename="payments")
+# Убрал PaymentViewSet из users, так как он теперь в brods
 
 urlpatterns = [
     path("", include(router.urls)),

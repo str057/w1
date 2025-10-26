@@ -1,8 +1,11 @@
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.views import APIView
-from django.shortcuts import get_object_or_404
+from rest_framework.decorators import action
+from django_filters.rest_framework import DjangoFilterBackend
+
+from drf_spectacular.utils import extend_schema
+
 from users.permissions import IsModerator, IsNotModerator, IsOwner
 from brods.models import Course, Lesson, Subscription
 from brods.serializers import (
@@ -11,12 +14,13 @@ from brods.serializers import (
     LessonSerializer,
     LessonListSerializer,
 )
-from brods.paginators import CourseLessonPaginator
 
 
+@extend_schema(tags=["Курсы"])
 class CourseViewSet(viewsets.ModelViewSet):
     queryset = Course.objects.all()
-    pagination_class = CourseLessonPaginator
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["owner"]
 
     def get_serializer_class(self):
         if self.action == "retrieve":
@@ -45,6 +49,10 @@ class CourseViewSet(viewsets.ModelViewSet):
             self.permission_classes = [IsAuthenticated, IsOwner, IsNotModerator]
         return [permission() for permission in self.permission_classes]
 
+    @extend_schema(
+        summary="Создать курс",
+        description="Создание нового курса. Модераторы не могут создавать курсы.",
+    )
     def create(self, request, *args, **kwargs):
         if request.user.groups.filter(name="moderators").exists():
             return Response(
@@ -56,6 +64,10 @@ class CourseViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
 
+    @extend_schema(
+        summary="Удалить курс",
+        description="Удаление курса. Модераторы не могут удалять курсы.",
+    )
     def destroy(self, request, *args, **kwargs):
         if request.user.groups.filter(name="moderators").exists():
             return Response(
@@ -64,10 +76,47 @@ class CourseViewSet(viewsets.ModelViewSet):
             )
         return super().destroy(request, *args, **kwargs)
 
+    @extend_schema(
+        summary="Подписаться/отписаться от курса",
+        description="Переключает подписку пользователя на курс",
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "message": {"type": "string"},
+                    "subscribed": {"type": "boolean"},
+                },
+            }
+        },
+    )
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    def subscribe(self, request, pk=None):
+        """Подписка/отписка от курса"""
+        course = self.get_object()
+        user = request.user
 
+        subscription, created = Subscription.objects.get_or_create(
+            user=user, course=course
+        )
+
+        if created:
+            message = "Подписка оформлена"
+            subscribed = True
+        else:
+            subscription.delete()
+            message = "Подписка отменена"
+            subscribed = False
+
+        return Response(
+            {"message": message, "subscribed": subscribed}, status=status.HTTP_200_OK
+        )
+
+
+@extend_schema(tags=["Уроки"])
 class LessonViewSet(viewsets.ModelViewSet):
     queryset = Lesson.objects.all()
-    pagination_class = CourseLessonPaginator
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["course", "owner"]
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -96,6 +145,10 @@ class LessonViewSet(viewsets.ModelViewSet):
             self.permission_classes = [IsAuthenticated, IsOwner, IsNotModerator]
         return [permission() for permission in self.permission_classes]
 
+    @extend_schema(
+        summary="Создать урок",
+        description="Создание нового урока. Модераторы не могут создавать уроки.",
+    )
     def create(self, request, *args, **kwargs):
         if request.user.groups.filter(name="moderators").exists():
             return Response(
@@ -107,6 +160,10 @@ class LessonViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
 
+    @extend_schema(
+        summary="Удалить урок",
+        description="Удаление урока. Модераторы не могут удалять уроки.",
+    )
     def destroy(self, request, *args, **kwargs):
         if request.user.groups.filter(name="moderators").exists():
             return Response(
@@ -114,23 +171,3 @@ class LessonViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
         return super().destroy(request, *args, **kwargs)
-
-
-class SubscriptionView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, *args, **kwargs):
-        user = request.user
-        course_id = request.data.get("course_id")
-        course_item = get_object_or_404(Course, id=course_id)
-
-        subs_item = Subscription.objects.filter(user=user, course=course_item)
-
-        if subs_item.exists():
-            subs_item.delete()
-            message = "Подписка удалена"
-        else:
-            Subscription.objects.create(user=user, course=course_item)
-            message = "Подписка добавлена"
-
-        return Response({"message": message})
