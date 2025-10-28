@@ -2,49 +2,112 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
-
-
+from django.utils import timezone
+from django.conf import settings
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
 
-from brods.models import Course, Payment
+from brods.models import Course, Lesson, Payment
 from brods.serializers import PaymentSerializer
 
 
-# Временная заглушка StripeService для тестирования
 class StripeService:
-    @staticmethod
-    def create_product(course):
-        return type("obj", (object,), {"id": f"prod_{course.id}"})
+    def __init__(self):
+        self.stripe_api_key = settings.STRIPE_SECRET_KEY
+        stripe.api_key = self.stripe_api_key
 
-    @staticmethod
-    def create_price(product_id, amount):
-        return type("obj", (object,), {"id": f"price_{product_id}"})
+    def create_product(self, course=None, lesson=None):
+        """Создание продукта в Stripe"""
+        try:
+            if course:
+                product = stripe.Product.create(
+                    name=course.title,
+                    description=course.description[:500] if course.description
+                    else f"Курс {course.title}",
+                )
+            elif lesson:
+                product = stripe.Product.create(
+                    name=lesson.title,
+                    description=lesson.description[:500] if lesson.description
+                    else f"Урок {lesson.title}",
+                )
+            else:
+                raise ValueError("Необходимо указать course или lesson")
 
-    @staticmethod
+            return product
+        except stripe.error.StripeError as e:
+            raise Exception(f"Ошибка создания продукта в Stripe: {str(e)}")
+
+    def create_price(self, product_id, amount, currency="usd"):
+        """Создание цены в Stripe"""
+        try:
+            price = stripe.Price.create(
+                product=product_id,
+                unit_amount=amount,
+                currency=currency,
+            )
+            return price
+        except stripe.error.StripeError as e:
+            raise Exception(f"Ошибка создания цены в Stripe: {str(e)}")
+
     def create_checkout_session(
-        price_id, course_id, user_email, success_url, cancel_url
+            self,
+            price_id,
+            success_url,
+            cancel_url,
+            course_id=None,
+            lesson_id=None,
+            user_email=None,
+            metadata=None
     ):
-        return type(
-            "obj",
-            (object,),
-            {
-                "id": f"cs_test_{course_id}",
-                "url": f"https://checkout.stripe.com/test_{course_id}",
-                "payment_status": "unpaid",
-            },
-        )
+        """Создание сессии checkout в Stripe"""
+        try:
+            line_items = [{
+                'price': price_id,
+                'quantity': 1,
+            }]
 
-    @staticmethod
-    def retrieve_session(session_id):
-        return type(
-            "obj",
-            (object,),
-            {"payment_status": "paid", "payment_intent": f"pi_{session_id}"},
-        )
+            session_data = {
+                'line_items': line_items,
+                'mode': 'payment',
+                'success_url': success_url,
+                'cancel_url': cancel_url,
+                'customer_email': user_email,
+                'metadata': metadata or {},
+            }
+
+            if course_id:
+                session_data['metadata']['course_id'] = str(course_id)
+            if lesson_id:
+                session_data['metadata']['lesson_id'] = str(lesson_id)
+
+            session = stripe.checkout.Session.create(**session_data)
+            return session
+        except stripe.error.StripeError as e:
+            raise Exception(f"Ошибка создания сессии оплаты: {str(e)}")
+
+    def retrieve_session(self, session_id):
+        """Получение информации о сессии"""
+        try:
+            session = stripe.checkout.Session.retrieve(session_id)
+            return session
+        except stripe.error.StripeError as e:
+            raise Exception(f"Ошибка получения сессии: {str(e)}")
+
+    def convert_to_cents(self, amount):
+        """Конвертация суммы в долларах в центы"""
+        return int(amount * 100)
+
+    def expire_session(self, session_id):
+        """Отмена сессии оплаты"""
+        try:
+            session = stripe.checkout.Session.expire(session_id)
+            return session
+        except stripe.error.StripeError as e:
+            raise Exception(f"Ошибка отмены сессии: {str(e)}")
 
 
 class PaymentViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.AllowAny]  # Для тестирования
+    permission_classes = [permissions.AllowAny]
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
 
@@ -53,7 +116,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
 
 class CreatePaymentSessionView(APIView):
-    permission_classes = [permissions.AllowAny]  # Для тестирования
+    permission_classes = [permissions.AllowAny]
+
+    def __init__(self):
+        super().__init__()
+        self.stripe_service = StripeService()
 
     @extend_schema(
         summary="Создать сессию оплаты для курса",
@@ -92,21 +159,20 @@ class CreatePaymentSessionView(APIView):
         """Создание сессии оплаты для курса"""
         course = get_object_or_404(Course, id=course_id)
 
-        # Проверяем, не оплачен ли уже курс
-        existing_payment = Payment.objects.filter(
-            user=request.user if request.user.is_authenticated else None,
-            paid_course=course,
-            payment_status="paid",
-        ).exists()
+        if request.user.is_authenticated:
+            existing_payment = Payment.objects.filter(
+                user=request.user,
+                paid_course=course,
+                payment_status="paid",
+            ).exists()
 
-        if existing_payment:
-            return Response(
-                {"error": "Этот курс уже оплачен"}, status=status.HTTP_400_BAD_REQUEST
-            )
+            if existing_payment:
+                return Response(
+                    {"error": "Этот курс уже оплачен"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        # Если курс бесплатный
         if course.price == 0:
-            # Создаем запись о бесплатной оплате
             Payment.objects.create(
                 user=request.user if request.user.is_authenticated else None,
                 paid_course=course,
@@ -115,18 +181,17 @@ class CreatePaymentSessionView(APIView):
                 payment_status="paid",
             )
             return Response(
-                {"message": "Курс бесплатный, доступ открыт"}, status=status.HTTP_200_OK
+                {"message": "Курс бесплатный, доступ открыт"},
+                status=status.HTTP_200_OK
             )
 
-        # Создаем продукт и цену в Stripe если их нет
         if not course.stripe_product_id or not course.stripe_price_id:
             try:
-                product = StripeService.create_product(course)
+                product = self.stripe_service.create_product(course=course)
                 course.stripe_product_id = product.id
 
-                # Создаем цену (умножаем на 100 для перевода в центы)
-                price_amount = int(course.price * 100)
-                price = StripeService.create_price(product.id, price_amount)
+                price_amount = self.stripe_service.convert_to_cents(course.price)
+                price = self.stripe_service.create_price(product.id, price_amount)
                 course.stripe_price_id = price.id
                 course.save()
             except Exception as e:
@@ -135,25 +200,31 @@ class CreatePaymentSessionView(APIView):
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
-        # Создаем URL для перенаправления
-        base_url = request.build_absolute_uri("/")[:-1]  # Убираем trailing slash
+        base_url = request.build_absolute_uri("/")[:-1]
         success_url = (
             f"{base_url}/api/payment/success/?session_id={{CHECKOUT_SESSION_ID}}"
         )
         cancel_url = f"{base_url}/api/payment/cancel/"
 
         try:
-            # Создаем сессию оплаты
-            session = StripeService.create_checkout_session(
+            session = self.stripe_service.create_checkout_session(
                 price_id=course.stripe_price_id,
+                success_url=success_url,
+                cancel_url=cancel_url,
                 course_id=course.id,
                 user_email=(
                     request.user.email
                     if request.user.is_authenticated
                     else "test@example.com"
                 ),
-                success_url=success_url,
-                cancel_url=cancel_url,
+                metadata={
+                    "course_id": str(course.id),
+                    "user_id": (
+                        str(request.user.id)
+                        if request.user.is_authenticated
+                        else "anonymous"
+                    ),
+                },
             )
         except Exception as e:
             return Response(
@@ -161,13 +232,14 @@ class CreatePaymentSessionView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        # Сохраняем информацию о платеже
-        Payment.objects.create(
+        payment = Payment.objects.create(
             user=request.user if request.user.is_authenticated else None,
             paid_course=course,
             amount=course.price,
             payment_method="stripe",
             stripe_session_id=session.id,
+            stripe_price_id=course.stripe_price_id,
+            stripe_product_id=course.stripe_product_id,
         )
 
         return Response(
@@ -175,13 +247,146 @@ class CreatePaymentSessionView(APIView):
                 "session_id": session.id,
                 "url": session.url,
                 "message": "Сессия оплаты создана",
+                "payment_id": payment.id,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class CreateLessonPaymentSessionView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def __init__(self):
+        super().__init__()
+        self.stripe_service = StripeService()
+
+    @extend_schema(
+        summary="Создать сессию оплаты для урока",
+        description="Создает сессию Stripe для оплаты выбранного урока",
+        parameters=[
+            OpenApiParameter(
+                name="lesson_id",
+                type=int,
+                location=OpenApiParameter.PATH,
+                description="ID урока для оплаты",
+            )
+        ],
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string"},
+                    "url": {"type": "string"},
+                    "message": {"type": "string"},
+                },
+            },
+            400: {"type": "object", "properties": {"error": {"type": "string"}}},
+        },
+    )
+    def post(self, request, lesson_id):
+        """Создание сессии оплаты для урока"""
+        lesson = get_object_or_404(Lesson, id=lesson_id)
+
+        if request.user.is_authenticated:
+            existing_payment = Payment.objects.filter(
+                user=request.user,
+                paid_lesson=lesson,
+                payment_status="paid",
+            ).exists()
+
+            if existing_payment:
+                return Response(
+                    {"error": "Этот урок уже оплачен"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        if lesson.price == 0:
+            Payment.objects.create(
+                user=request.user if request.user.is_authenticated else None,
+                paid_lesson=lesson,
+                amount=0,
+                payment_method="transfer",
+                payment_status="paid",
+            )
+            return Response(
+                {"message": "Урок бесплатный, доступ открыт"},
+                status=status.HTTP_200_OK
+            )
+
+        if not hasattr(lesson, 'stripe_product_id') or not lesson.stripe_product_id:
+            try:
+                product = self.stripe_service.create_product(lesson=lesson)
+                lesson.stripe_product_id = product.id
+
+                price_amount = self.stripe_service.convert_to_cents(lesson.price)
+                price = self.stripe_service.create_price(product.id, price_amount)
+                lesson.stripe_price_id = price.id
+                lesson.save()
+            except Exception as e:
+                return Response(
+                    {"error": f"Ошибка создания продукта в Stripe: {str(e)}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+        base_url = request.build_absolute_uri("/")[:-1]
+        success_url = (
+            f"{base_url}/api/payment/success/?session_id={{CHECKOUT_SESSION_ID}}"
+        )
+        cancel_url = f"{base_url}/api/payment/cancel/"
+
+        try:
+            session = self.stripe_service.create_checkout_session(
+                price_id=lesson.stripe_price_id,
+                success_url=success_url,
+                cancel_url=cancel_url,
+                lesson_id=lesson.id,
+                user_email=(
+                    request.user.email
+                    if request.user.is_authenticated
+                    else "test@example.com"
+                ),
+                metadata={
+                    "lesson_id": str(lesson.id),
+                    "user_id": (
+                        str(request.user.id)
+                        if request.user.is_authenticated
+                        else "anonymous"
+                    ),
+                },
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Ошибка создания сессии оплаты: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        payment = Payment.objects.create(
+            user=request.user if request.user.is_authenticated else None,
+            paid_lesson=lesson,
+            amount=lesson.price,
+            payment_method="stripe",
+            stripe_session_id=session.id,
+            stripe_price_id=lesson.stripe_price_id,
+            stripe_product_id=lesson.stripe_product_id,
+        )
+
+        return Response(
+            {
+                "session_id": session.id,
+                "url": session.url,
+                "message": "Сессия оплаты для урока создана",
+                "payment_id": payment.id,
             },
             status=status.HTTP_200_OK,
         )
 
 
 class PaymentSuccessView(APIView):
-    permission_classes = [permissions.AllowAny]  # Для тестирования
+    permission_classes = [permissions.AllowAny]
+
+    def __init__(self):
+        super().__init__()
+        self.stripe_service = StripeService()
 
     @extend_schema(
         summary="Обработка успешной оплаты",
@@ -201,6 +406,8 @@ class PaymentSuccessView(APIView):
                     "message": {"type": "string"},
                     "course_id": {"type": "integer"},
                     "course_title": {"type": "string"},
+                    "lesson_id": {"type": "integer"},
+                    "lesson_title": {"type": "string"},
                 },
             }
         },
@@ -216,49 +423,63 @@ class PaymentSuccessView(APIView):
             )
 
         try:
-            # Получаем информацию о сессии
-            session = StripeService.retrieve_session(session_id)
+            session = self.stripe_service.retrieve_session(session_id)
         except Exception as e:
             return Response(
                 {"error": f"Ошибка получения информации о сессии: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Находим соответствующий платеж
         payment = Payment.objects.filter(
             stripe_session_id=session_id,
-            user=request.user if request.user.is_authenticated else None,
         ).first()
 
         if not payment:
             return Response(
-                {"error": "Платеж не найден"}, status=status.HTTP_404_NOT_FOUND
+                {"error": "Платеж не найден"},
+                status=status.HTTP_404_NOT_FOUND
             )
 
         if session.payment_status == "paid" and payment.payment_status != "paid":
-            # Обновляем статус платежа
             payment.payment_status = "paid"
             payment.stripe_payment_intent_id = session.payment_intent
+            payment.payment_date = timezone.now()
             payment.save()
 
-            return Response(
-                {
-                    "message": "Оплата прошла успешно! Курс доступен для изучения.",
+            response_data = {
+                "message": "Оплата прошла успешно! Материал доступен для изучения.",
+            }
+
+            if payment.paid_course:
+                response_data.update({
                     "course_id": payment.paid_course.id,
                     "course_title": payment.paid_course.title,
-                },
-                status=status.HTTP_200_OK,
-            )
+                })
+            elif payment.paid_lesson:
+                response_data.update({
+                    "lesson_id": payment.paid_lesson.id,
+                    "lesson_title": payment.paid_lesson.title,
+                })
+
+            return Response(response_data, status=status.HTTP_200_OK)
 
         elif payment.payment_status == "paid":
-            return Response(
-                {
-                    "message": "Оплата уже была подтверждена ранее",
+            response_data = {
+                "message": "Оплата уже была подтверждена ранее",
+            }
+
+            if payment.paid_course:
+                response_data.update({
                     "course_id": payment.paid_course.id,
                     "course_title": payment.paid_course.title,
-                },
-                status=status.HTTP_200_OK,
-            )
+                })
+            elif payment.paid_lesson:
+                response_data.update({
+                    "lesson_id": payment.paid_lesson.id,
+                    "lesson_title": payment.paid_lesson.title,
+                })
+
+            return Response(response_data, status=status.HTTP_200_OK)
 
         else:
             return Response(
@@ -271,7 +492,7 @@ class PaymentSuccessView(APIView):
 
 
 class PaymentCancelView(APIView):
-    permission_classes = [permissions.AllowAny]  # Для тестирования
+    permission_classes = [permissions.AllowAny]
 
     @extend_schema(
         summary="Отмена оплаты",
@@ -279,6 +500,14 @@ class PaymentCancelView(APIView):
     )
     def get(self, request):
         """Обработка отмены оплаты"""
+        session_id = request.GET.get("session_id")
+
+        if session_id:
+            Payment.objects.filter(
+                stripe_session_id=session_id,
+                payment_status="pending"
+            ).update(payment_status="canceled")
+
         return Response(
             {"message": "Оплата отменена. Вы можете попробовать снова."},
             status=status.HTTP_200_OK,
@@ -286,7 +515,7 @@ class PaymentCancelView(APIView):
 
 
 class PaymentHistoryView(APIView):
-    permission_classes = [permissions.AllowAny]  # Для тестирования
+    permission_classes = [permissions.AllowAny]
 
     @extend_schema(
         summary="История платежей пользователя",
@@ -304,3 +533,95 @@ class PaymentHistoryView(APIView):
 
         serializer = PaymentSerializer(payments, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class PaymentDetailView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    @extend_schema(
+        summary="Детали платежа",
+        description="Возвращает детальную информацию о конкретном платеже",
+        parameters=[
+            OpenApiParameter(
+                name="payment_id",
+                type=int,
+                location=OpenApiParameter.PATH,
+                description="ID платежа",
+            )
+        ],
+        responses=PaymentSerializer,
+    )
+    def get(self, request, payment_id):
+        """Получение деталей платежа"""
+        payment = get_object_or_404(Payment, id=payment_id)
+
+        if request.user.is_authenticated and payment.user != request.user:
+            return Response(
+                {"error": "У вас нет доступа к этому платежу"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = PaymentSerializer(payment)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ExpirePaymentSessionView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def __init__(self):
+        super().__init__()
+        self.stripe_service = StripeService()
+
+    @extend_schema(
+        summary="Отменить сессию оплаты",
+        description="Отменяет активную сессию оплаты в Stripe",
+        parameters=[
+            OpenApiParameter(
+                name="session_id",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="ID сессии Stripe для отмены",
+            )
+        ],
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "message": {"type": "string"},
+                },
+            }
+        },
+    )
+    def post(self, request):
+        """Отмена сессии оплаты"""
+        session_id = request.GET.get("session_id")
+
+        if not session_id:
+            return Response(
+                {"error": "Session ID не предоставлен"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            payment = Payment.objects.filter(stripe_session_id=session_id).first()
+            if not payment:
+                return Response(
+                    {"error": "Платеж не найден"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            self.stripe_service.expire_session(session_id)
+
+            payment.payment_status = "canceled"
+            payment.save()
+
+            return Response(
+                {"message": "Сессия оплаты отменена"},
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Ошибка при отмене сессии: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

@@ -18,21 +18,26 @@ class StripeService:
             if course:
                 product_data = {
                     "name": course.title,
-                    "description": course.description[:500] if course.description else "Курс без описания",
-                    "metadata": {
-                        "course_id": str(course.id),
-                        "type": "course"
-                    }
+                    "description": (
+                        course.description[:500]
+                        if course.description
+                        else "Курс без описания"
+                    ),
+                    "metadata": {"course_id": str(course.id), "type": "course"},
                 }
             else:
                 product_data = {
                     "name": lesson.title,
-                    "description": lesson.description[:500] if lesson.description else "Урок без описания",
+                    "description": (
+                        lesson.description[:500]
+                        if lesson.description
+                        else "Урок без описания"
+                    ),
                     "metadata": {
                         "lesson_id": str(lesson.id),
                         "course_id": str(lesson.course.id),
-                        "type": "lesson"
-                    }
+                        "type": "lesson",
+                    },
                 }
 
             product = stripe.Product.create(**product_data)
@@ -80,13 +85,13 @@ class StripeService:
     # === CHECKOUT SESSION METHODS ===
     @staticmethod
     def create_checkout_session(
-            price_id: str,
-            success_url: str,
-            cancel_url: str,
-            course_id: int = None,
-            lesson_id: int = None,
-            user_email: str = None,
-            metadata: dict = None
+        price_id: str,
+        success_url: str,
+        cancel_url: str,
+        course_id: int = None,
+        lesson_id: int = None,
+        user_email: str = None,
+        metadata: dict = None,
     ):
         """Создание сессии для оплаты"""
         if not course_id and not lesson_id:
@@ -104,7 +109,7 @@ class StripeService:
                 "mode": "payment",
                 "success_url": success_url,
                 "cancel_url": cancel_url,
-                "metadata": metadata or {}
+                "metadata": metadata or {},
             }
 
             if user_email:
@@ -126,9 +131,7 @@ class StripeService:
     # === PAYMENT INTENT METHODS ===
     @staticmethod
     def create_payment_intent(
-            amount: int,
-            currency: str = "usd",
-            metadata: dict = None
+        amount: int, currency: str = "usd", metadata: dict = None
     ):
         """Создание Payment Intent (для более гибкого управления платежами)"""
         try:
@@ -179,9 +182,7 @@ class StripeService:
     def construct_webhook_event(payload: bytes, sig_header: str, webhook_secret: str):
         """Верификация вебхука от Stripe"""
         try:
-            return stripe.Webhook.construct_event(
-                payload, sig_header, webhook_secret
-            )
+            return stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
         except ValueError as e:
             raise Exception(f"Невалидный payload: {str(e)}")
         except stripe.error.SignatureVerificationError as e:
