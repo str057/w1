@@ -12,6 +12,7 @@ from brods.serializers import (
     CourseSerializer,
     CourseDetailSerializer,
 )
+from brods.tasks import send_course_update_notification  # ← ДОБАВИТЬ
 
 
 @extend_schema(tags=["Курсы"])
@@ -28,8 +29,8 @@ class CourseViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         if (
-            self.request.user.is_authenticated
-            and not self.request.user.groups.filter(name="moderators").exists()
+                self.request.user.is_authenticated
+                and not self.request.user.groups.filter(name="moderators").exists()
         ):
             queryset = queryset.filter(owner=self.request.user)
         return queryset
@@ -61,6 +62,28 @@ class CourseViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
+
+    def update(self, request, *args, **kwargs):
+        """Переопределяем update для отправки уведомлений"""
+        response = super().update(request, *args, **kwargs)
+
+        # Запускаем асинхронную задачу отправки уведомлений
+        if response.status_code == status.HTTP_200_OK:
+            course_id = self.get_object().id
+            send_course_update_notification.delay(course_id)
+
+        return response
+
+    def partial_update(self, request, *args, **kwargs):
+        """Переопределяем partial_update для отправки уведомлений"""
+        response = super().partial_update(request, *args, **kwargs)
+
+        # Запускаем асинхронную задачу отправки уведомлений
+        if response.status_code == status.HTTP_200_OK:
+            course_id = self.get_object().id
+            send_course_update_notification.delay(course_id)
+
+        return response
 
     @extend_schema(
         summary="Удалить курс",

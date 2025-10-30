@@ -1,6 +1,6 @@
 from pathlib import Path
 from datetime import timedelta
-
+import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -25,6 +25,8 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "django_filters",
     "corsheaders",
+    "django_celery_beat",
+    "django_celery_results",
     # Local apps
     "users",
     "brods",
@@ -95,7 +97,6 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -106,23 +107,37 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
-
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
 
-
+# Stripe settings
 STRIPE_PUBLISHABLE_KEY = "pk_test_your_publishable_key_here"
 STRIPE_SECRET_KEY = "sk_test_your_secret_key_here"
 STRIPE_WEBHOOK_SECRET = "whsec_your_webhook_secret_here"
 
-
+# CORS settings
 CORS_ALLOW_ALL_ORIGINS = True
 
-
+# Spectacular settings
 SPECTACULAR_SETTINGS = {
     "TITLE": "Educational Platform API",
     "DESCRIPTION": "API для образовательной платформы",
     "VERSION": "1.0.0",
 }
+
+# Celery settings - ИСПРАВЛЕННЫЕ (память для разработки)
+CELERY_BROKER_URL = 'memory://'
+CELERY_RESULT_BACKEND = 'cache+memory://'
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+
+# Celery Beat settings
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+# Email settings (для отправки уведомлений)
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+DEFAULT_FROM_EMAIL = 'noreply@yourplatform.com'
