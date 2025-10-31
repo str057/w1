@@ -13,12 +13,20 @@ class StripeService:
             if course:
                 product = stripe.Product.create(
                     name=course.title,
-                    description=course.description[:500] if course.description else f"Курс {course.title}"
+                    description=(
+                        course.description[:500]
+                        if course.description
+                        else f"Курс {course.title}"
+                    ),
                 )
             elif lesson:
                 product = stripe.Product.create(
                     name=lesson.title,
-                    description=lesson.description[:500] if lesson.description else f"Урок {lesson.title}"
+                    description=(
+                        lesson.description[:500]
+                        if lesson.description
+                        else f"Урок {lesson.title}"
+                    ),
                 )
             return product
         except Exception as e:
@@ -44,16 +52,18 @@ class StripeService:
         """Создание сессии оплаты"""
         try:
             session = stripe.checkout.Session.create(
-                payment_method_types=['card'],
-                line_items=[{
-                    'price': price_id,
-                    'quantity': 1,
-                }],
-                mode='payment',
+                payment_method_types=["card"],
+                line_items=[
+                    {
+                        "price": price_id,
+                        "quantity": 1,
+                    }
+                ],
+                mode="payment",
                 success_url=success_url,
                 cancel_url=cancel_url,
-                customer_email=kwargs.get('user_email'),
-                metadata=kwargs.get('metadata', {})
+                customer_email=kwargs.get("user_email"),
+                metadata=kwargs.get("metadata", {}),
             )
             return session
         except Exception as e:

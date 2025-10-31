@@ -29,8 +29,8 @@ class CourseViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         if (
-                self.request.user.is_authenticated
-                and not self.request.user.groups.filter(name="moderators").exists()
+            self.request.user.is_authenticated
+            and not self.request.user.groups.filter(name="moderators").exists()
         ):
             queryset = queryset.filter(owner=self.request.user)
         return queryset

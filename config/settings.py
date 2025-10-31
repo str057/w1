@@ -1,6 +1,7 @@
 from pathlib import Path
 from datetime import timedelta
-import os
+
+from celery.schedules import crontab  # ← ДОБАВИТЬ
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -19,7 +20,6 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    # Third party apps
     "rest_framework",
     "rest_framework_simplejwt",
     "drf_spectacular",
@@ -27,7 +27,6 @@ INSTALLED_APPS = [
     "corsheaders",
     "django_celery_beat",
     "django_celery_results",
-    # Local apps
     "users",
     "brods",
 ]
@@ -112,32 +111,40 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
 
-# Stripe settings
+
 STRIPE_PUBLISHABLE_KEY = "pk_test_your_publishable_key_here"
 STRIPE_SECRET_KEY = "sk_test_your_secret_key_here"
 STRIPE_WEBHOOK_SECRET = "whsec_your_webhook_secret_here"
 
-# CORS settings
+
 CORS_ALLOW_ALL_ORIGINS = True
 
-# Spectacular settings
+
 SPECTACULAR_SETTINGS = {
     "TITLE": "Educational Platform API",
     "DESCRIPTION": "API для образовательной платформы",
     "VERSION": "1.0.0",
 }
 
-# Celery settings - ИСПРАВЛЕННЫЕ (память для разработки)
-CELERY_BROKER_URL = 'memory://'
-CELERY_RESULT_BACKEND = 'cache+memory://'
+
+CELERY_BROKER_URL = "memory://"
+CELERY_RESULT_BACKEND = "cache+memory://"
 CELERY_TIMEZONE = TIME_ZONE
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
 
-# Celery Beat settings
-CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
-# Email settings (для отправки уведомлений)
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-DEFAULT_FROM_EMAIL = 'noreply@yourplatform.com'
+CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+
+
+CELERY_BEAT_SCHEDULE = {
+    "deactivate-inactive-users-every-day": {
+        "task": "brods.tasks.deactivate_inactive_users",
+        "schedule": crontab(hour=2, minute=0),  # Каждый день в 2:00
+    },
+}
+
+
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+DEFAULT_FROM_EMAIL = "noreply@yourplatform.com"

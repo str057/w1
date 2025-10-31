@@ -15,17 +15,16 @@ def send_course_update_notification(course_id):
     try:
         course = Course.objects.get(id=course_id)
         subscriptions = Subscription.objects.filter(
-            course=course,
-            is_active=True
-        ).select_related('user')
+            course=course, is_active=True
+        ).select_related("user")
 
         recipients = [sub.user.email for sub in subscriptions if sub.user.email]
 
         if not recipients:
             return f"No subscribers for course {course.title}"
 
-        subject = f'Обновление курса: {course.title}'
-        message = f'''
+        subject = f"Обновление курса: {course.title}"
+        message = f"""
         Здравствуйте!
 
         Курс "{course.title}" был обновлен.
@@ -36,7 +35,7 @@ def send_course_update_notification(course_id):
 
         С уважением,
         Команда образовательной платформы
-        '''
+        """
 
         send_mail(
             subject=subject,
@@ -70,17 +69,16 @@ def send_lesson_update_notification(lesson_id, course_id):
             return f"Course {course.title} was updated recently, skipping notification"
 
         subscriptions = Subscription.objects.filter(
-            course=course,
-            is_active=True
-        ).select_related('user')
+            course=course, is_active=True
+        ).select_related("user")
 
         recipients = [sub.user.email for sub in subscriptions if sub.user.email]
 
         if not recipients:
             return f"No subscribers for course {course.title}"
 
-        subject = f'Новый урок в курсе: {course.title}'
-        message = f'''
+        subject = f"Новый урок в курсе: {course.title}"
+        message = f"""
         Здравствуйте!
 
         В курсе "{course.title}" добавлен новый урок: "{lesson.title}".
@@ -91,7 +89,7 @@ def send_lesson_update_notification(lesson_id, course_id):
 
         С уважением,
         Команда образовательной платформы
-        '''
+        """
 
         send_mail(
             subject=subject,
@@ -121,8 +119,7 @@ def deactivate_inactive_users():
     try:
         one_month_ago = timezone.now() - timedelta(days=30)
         inactive_users = User.objects.filter(
-            last_login__lt=one_month_ago,
-            is_active=True
+            last_login__lt=one_month_ago, is_active=True
         )
 
         count = inactive_users.count()
