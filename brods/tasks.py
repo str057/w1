@@ -45,7 +45,10 @@ def send_course_update_notification(course_id):
             fail_silently=False,
         )
 
-        return f"Sent update notifications to {len(recipients)} subscribers for course {course.title}"
+        return (
+            f"Sent update notifications to {len(recipients)} "
+            f"subscribers for course {course.title}"
+        )
 
     except Course.DoesNotExist:
         return f"Course with id {course_id} does not exist"
@@ -66,7 +69,9 @@ def send_lesson_update_notification(lesson_id, course_id):
         # Проверка: отправляем уведомление только если курс не обновлялся более 4 часов
         four_hours_ago = timezone.now() - timedelta(hours=4)
         if course.updated_at and course.updated_at > four_hours_ago:
-            return f"Course {course.title} was updated recently, skipping notification"
+            return (
+                f"Course {course.title} was updated recently, " "skipping notification"
+            )
 
         subscriptions = Subscription.objects.filter(
             course=course, is_active=True
@@ -103,7 +108,10 @@ def send_lesson_update_notification(lesson_id, course_id):
         course.updated_at = timezone.now()
         course.save()
 
-        return f"Sent lesson update notifications to {len(recipients)} subscribers for course {course.title}"
+        return (
+            f"Sent lesson update notifications to {len(recipients)} "
+            f"subscribers for course {course.title}"
+        )
 
     except (Course.DoesNotExist, Lesson.DoesNotExist) as e:
         return f"Course or lesson does not exist: {str(e)}"

@@ -3,19 +3,12 @@
 *.pot
 *.pyc
 __pycache__/
-local_settings.py
 db.sqlite3
-db.sqlite3-journal
 media/
 
-# Environments
-.env
-.venv
-env/
+# Virtual environment
 venv/
-ENV/
-env.bak/
-venv.bak/
+env/
 
 # IDE
 .vscode/
@@ -25,25 +18,7 @@ venv.bak/
 
 # OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
 
-# PyPI
-dist/
-build/
-*.egg-info/
-
-# Testing
-.coverage
-htmlcov/
-.pytest_cache/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Database
-*.db
+# Environment variables
+.env

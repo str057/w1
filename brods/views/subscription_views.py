@@ -4,9 +4,9 @@ from brods.serializers import SubscriptionSerializer
 
 
 class SubscriptionViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.AllowAny]  # Для тестирования
     queryset = Subscription.objects.all()
     serializer_class = SubscriptionSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Subscription.objects.all()
+        return Subscription.objects.filter(user=self.request.user)

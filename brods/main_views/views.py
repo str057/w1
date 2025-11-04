@@ -10,8 +10,8 @@ from users.permissions import IsModerator, IsNotModerator, IsOwner
 from brods.models import Course, Lesson, Subscription
 from brods.serializers import (
     CourseSerializer,
-    CourseDetailSerializer,
     LessonSerializer,
+    CourseDetailSerializer,
     LessonListSerializer,
 )
 
@@ -108,7 +108,8 @@ class CourseViewSet(viewsets.ModelViewSet):
             subscribed = False
 
         return Response(
-            {"message": message, "subscribed": subscribed}, status=status.HTTP_200_OK
+            {"message": message, "subscribed": subscribed},
+            status=status.HTTP_200_OK,
         )
 
 
