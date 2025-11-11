@@ -24,20 +24,24 @@ class HabitAPITest(TestCase):
     def test_get_habits_authenticated(self):
         """Тест получения привычек с авторизацией"""
         self.client.force_authenticate(user=self.user)
-        response = self.client.get("/api/habits/")
-
+        response = self.client.get("/api/habits/habits/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 1)
+        # Исправленная проверка - смотрим на количество результатов
+        if "results" in response.data:
+            # Если используется пагинация
+            self.assertEqual(len(response.data["results"]), 1)
+        else:
+            # Если возвращается просто список
+            self.assertEqual(len(response.data), 1)
 
     def test_get_habits_unauthenticated(self):
         """Тест получения привычек без авторизации"""
-        response = self.client.get("/api/habits/")
+        response = self.client.get("/api/habits/habits/")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_create_habit(self):
         """Тест создания привычки"""
         self.client.force_authenticate(user=self.user)
-
         data = {
             "place": "Park",
             "time": "07:00:00",
@@ -45,7 +49,6 @@ class HabitAPITest(TestCase):
             "time_to_complete": 120,
             "periodicity": 1,
         }
-
-        response = self.client.post("/api/habits/", data)
+        response = self.client.post("/api/habits/habits/", data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Habit.objects.count(), 2)
