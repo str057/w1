@@ -2,9 +2,9 @@ name: Django CI/CD
 
 on:
   push:
-    branches: [ "main", "develop", "hw-infra" ]
+    branches: [ "main", "dev", "hw-infra" ]
   pull_request:
-    branches: [ "main", "develop" ]
+    branches: [ "main", "dev" ]
 
 jobs:
   test:
@@ -48,6 +48,10 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
+    - name: Validate migrations
+      run: |
+        python manage.py makemigrations --check --dry-run
+
     - name: Run migrations and test
       env:
         SECRET_KEY: test-secret-key-for-ci-cd-${{ github.run_id }}
@@ -65,24 +69,50 @@ jobs:
         python manage.py migrate
         python manage.py test
 
-  deploy:
+  deploy-staging:
     needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/dev'
+
+    steps:
+    - name: Deploy to Staging Server
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.STAGING_HOST }}
+        username: ${{ secrets.STAGING_USERNAME }}
+        key: ${{ secrets.STAGING_SSH_KEY }}
+        script: |
+          cd /home/django/mailing_service
+          git pull origin dev
+          source venv/bin/activate
+          pip install -r requirements.txt
+          # Бэкап с правильной кодировкой
+          PYTHONIOENCODING=utf-8 python manage.py dumpdata --format=json --indent=2 > /tmp/backup_$(date +%Y%m%d_%H%M%S).json
+          python manage.py migrate --no-input
+          python manage.py collectstatic --noinput
+          sudo systemctl restart gunicorn
+          sudo systemctl restart celery
+
+  deploy-production:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
 
     steps:
     - name: Deploy to Production Server
       uses: appleboy/ssh-action@master
       with:
-        host: ${{ secrets.HOST }}
-        username: ${{ secrets.USERNAME }}
-        key: ${{ secrets.SSH_KEY }}
+        host: ${{ secrets.PRODUCTION_HOST }}
+        username: ${{ secrets.PRODUCTION_USERNAME }}
+        key: ${{ secrets.PRODUCTION_SSH_KEY }}
         script: |
           cd /home/django/mailing_service
-          git pull origin develop
+          git pull origin main
           source venv/bin/activate
           pip install -r requirements.txt
-          python manage.py migrate
+          # Бэкап с правильной кодировкой
+          PYTHONIOENCODING=utf-8 python manage.py dumpdata --format=json --indent=2 > /tmp/backup_$(date +%Y%m%d_%H%M%S).json
+          python manage.py migrate --no-input
           python manage.py collectstatic --noinput
           sudo systemctl restart gunicorn
           sudo systemctl restart celery
