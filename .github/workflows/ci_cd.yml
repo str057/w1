@@ -2,9 +2,9 @@ name: Django CI/CD
 
 on:
   push:
-    branches: [ "main", "dev", "hw-infra" ]
+    branches: ["dev"]
   pull_request:
-    branches: [ "main", "dev" ]
+    branches: ["dev"]
 
 jobs:
   test:
@@ -116,3 +116,5 @@ jobs:
           python manage.py collectstatic --noinput
           sudo systemctl restart gunicorn
           sudo systemctl restart celery
+          
+          
