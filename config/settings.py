@@ -15,6 +15,9 @@ SECRET_KEY = os.getenv(
 
 DEBUG = os.getenv("DEBUG", "True") == "True"
 
+# Добавляем APPEND_SLASH = False чтобы избежать редиректов
+APPEND_SLASH = False
+
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
@@ -210,12 +213,14 @@ EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 
 
-if not DEBUG:
-    SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
+# КОМПЛЕКСНОЕ ОТКЛЮЧЕНИЕ ВСЕХ SECURITY НАСТРОЕК ДЛЯ ТЕСТОВ
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+SECURE_BROWSER_XSS_FILTER = False
+SECURE_CONTENT_TYPE_NOSNIFF = False
+
+# УБИРАЕМ ВСЕ УСЛОВИЯ if not DEBUG
 
 # Logging
 LOGGING = {
