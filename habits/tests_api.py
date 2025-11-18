@@ -336,9 +336,14 @@ class HabitAPITest(TestCase):
         # Проверяем структуру пагинации
         if "results" in response.data:
             self.assertIn("count", response.data)
+            self.assertIn("next", response.data)
+            self.assertIn("previous", response.data)
             self.assertIn("results", response.data)
+            # 1 исходная + 5 новых = 6 привычек
             self.assertEqual(len(response.data["results"]), 6)
+            self.assertEqual(response.data["count"], 6)
         else:
+            # Без пагинации - просто проверяем количество
             self.assertEqual(len(response.data), 6)
 
     def test_habit_ordering(self):
@@ -366,3 +371,20 @@ class HabitAPITest(TestCase):
             times = [habit["time"] for habit in response.data]
             self.assertEqual(times, sorted(times))
 
+    def test_habit_str_method(self):
+        """Тест строкового представления привычки"""
+        self.assertEqual(str(self.habit), "Read book at 20:00:00")
+
+    def test_habit_model_fields(self):
+        """Тест полей модели Habit"""
+        self.assertEqual(self.habit.user, self.user)
+        self.assertEqual(self.habit.place, "Home")
+        self.assertEqual(self.habit.time, "20:00:00")
+        self.assertEqual(self.habit.action, "Read book")
+        self.assertEqual(self.habit.time_to_complete, 120)
+        self.assertEqual(self.habit.periodicity, 1)
+        self.assertFalse(self.habit.is_pleasant)
+        self.assertFalse(self.habit.is_public)
+        self.assertIsNone(self.habit.related_habit)
+        self.assertIsNone(self.habit.reward)
+        self.assertIsNotNone(self.habit.created_at)
