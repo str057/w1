@@ -9,8 +9,12 @@ from users.models import User
 class HabitAPITest(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.user = User.objects.create_user(email="test@example.com", password="testpass123")
-        self.other_user = User.objects.create_user(email="other@example.com", password="otherpass123")
+        self.user = User.objects.create_user(
+            email="test@example.com", password="testpass123"
+        )
+        self.other_user = User.objects.create_user(
+            email="other@example.com", password="otherpass123"
+        )
 
         self.habit = Habit.objects.create(
             user=self.user,
@@ -124,7 +128,9 @@ class HabitAPITest(TestCase):
         self.client.force_authenticate(user=self.user)
         response = self.client.delete(f"/api/habits/habits/{self.habit.id}/")
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertEqual(Habit.objects.count(), 2)  # Остаются публичная и приятная привычки
+        self.assertEqual(
+            Habit.objects.count(), 2
+        )  # Остаются публичная и приятная привычки
 
     def test_delete_other_user_habit(self):
         """Тест попытки удаления чужой привычки"""
@@ -243,8 +249,6 @@ class HabitAPITest(TestCase):
         for habit in habits:
             if isinstance(habit, dict):
                 self.assertEqual(habit["user"], self.user.id)
-            else:
-                self.assertEqual(habit.user, self.user)
 
     def test_partial_update_habit(self):
         """Тест частичного обновления привычки"""
@@ -363,5 +367,5 @@ class HabitAPITest(TestCase):
             times = [habit["time"] for habit in habits]
             self.assertEqual(times, sorted(times))
         else:
-            times = [habit.time for habit in response.data]
+            times = [habit["time"] for habit in response.data]
             self.assertEqual(times, sorted(times))
