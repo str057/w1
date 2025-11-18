@@ -1,4 +1,5 @@
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 from habits.models import Habit
@@ -8,12 +9,8 @@ from users.models import User
 class HabitAPITest(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.user = User.objects.create_user(
-            email="test@example.com", password="testpass123"
-        )
-        self.other_user = User.objects.create_user(
-            email="other@example.com", password="otherpass123"
-        )
+        self.user = User.objects.create_user(email="test@example.com", password="testpass123")
+        self.other_user = User.objects.create_user(email="other@example.com", password="otherpass123")
 
         self.habit = Habit.objects.create(
             user=self.user,
@@ -33,6 +30,17 @@ class HabitAPITest(TestCase):
             time_to_complete=30,
             periodicity=1,
             is_public=True,
+        )
+
+        # Создаем приятную привычку для тестирования связанных привычек
+        self.pleasant_habit = Habit.objects.create(
+            user=self.other_user,
+            place="Home",
+            time="21:00:00",
+            action="Meditation",
+            time_to_complete=60,
+            periodicity=1,
+            is_pleasant=True,
         )
 
     def test_get_habits_authenticated(self):
@@ -66,7 +74,7 @@ class HabitAPITest(TestCase):
         }
         response = self.client.post("/api/habits/habits/", data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(Habit.objects.count(), 3)  # Увеличиваем ожидаемое количество
+        self.assertEqual(Habit.objects.count(), 4)  # Увеличиваем ожидаемое количество
 
     def test_get_public_habits(self):
         """Тест получения публичных привычек"""
@@ -116,7 +124,7 @@ class HabitAPITest(TestCase):
         self.client.force_authenticate(user=self.user)
         response = self.client.delete(f"/api/habits/habits/{self.habit.id}/")
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertEqual(Habit.objects.count(), 1)  # Остается только публичная привычка
+        self.assertEqual(Habit.objects.count(), 2)  # Остаются публичная и приятная привычки
 
     def test_delete_other_user_habit(self):
         """Тест попытки удаления чужой привычки"""
@@ -150,6 +158,7 @@ class HabitAPITest(TestCase):
         """Тест валидации периодичности"""
         self.client.force_authenticate(user=self.user)
 
+        # Тест с некорректной периодичностью (> 7)
         data = {
             "place": "Park",
             "time": "07:00:00",
@@ -159,3 +168,200 @@ class HabitAPITest(TestCase):
         }
         response = self.client.post("/api/habits/habits/", data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_habit_related_habit_and_reward_validation(self):
+        """Тест взаимной исключительности связанной привычки и вознаграждения"""
+        self.client.force_authenticate(user=self.user)
+
+        data = {
+            "place": "Home",
+            "time": "19:00:00",
+            "action": "Test action",
+            "time_to_complete": 120,
+            "periodicity": 1,
+            "related_habit": self.pleasant_habit.id,
+            "reward": "Test reward",  # Нельзя одновременно иметь и связанную привычку и вознаграждение
+        }
+        response = self.client.post("/api/habits/habits/", data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_related_habit_validation(self):
+        """Тест что связанная привычка должна быть приятной"""
+        self.client.force_authenticate(user=self.user)
+
+        # Создаем НЕ приятную привычку
+        non_pleasant_habit = Habit.objects.create(
+            user=self.user,
+            place="Home",
+            time="18:00:00",
+            action="Study",
+            time_to_complete=120,
+            periodicity=1,
+            is_pleasant=False,
+        )
+
+        data = {
+            "place": "Home",
+            "time": "19:00:00",
+            "action": "Test action",
+            "time_to_complete": 120,
+            "periodicity": 1,
+            "related_habit": non_pleasant_habit.id,
+        }
+        response = self.client.post("/api/habits/habits/", data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_pleasant_habit_validation(self):
+        """Тест что у приятной привычки не может быть вознаграждения или связанной привычки"""
+        self.client.force_authenticate(user=self.user)
+
+        data = {
+            "place": "Home",
+            "time": "19:00:00",
+            "action": "Relax",
+            "time_to_complete": 120,
+            "periodicity": 1,
+            "is_pleasant": True,
+            "reward": "Test reward",  # Не должно быть у приятной привычки
+        }
+        response = self.client.post("/api/habits/habits/", data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_user_can_only_see_own_habits(self):
+        """Тест что пользователь видит только свои привычки"""
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get("/api/habits/habits/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        if "results" in response.data:
+            habits = response.data["results"]
+        else:
+            habits = response.data
+
+        # Проверяем что все возвращенные привычки принадлежат пользователю
+        for habit in habits:
+            if isinstance(habit, dict):
+                self.assertEqual(habit["user"], self.user.id)
+            else:
+                self.assertEqual(habit.user, self.user)
+
+    def test_partial_update_habit(self):
+        """Тест частичного обновления привычки"""
+        self.client.force_authenticate(user=self.user)
+        data = {
+            "action": "Updated action",
+        }
+        response = self.client.patch(f"/api/habits/habits/{self.habit.id}/", data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Проверяем обновленные данные
+        self.habit.refresh_from_db()
+        self.assertEqual(self.habit.action, "Updated action")
+
+    def test_create_habit_with_related_habit(self):
+        """Тест создания привычки со связанной привычкой"""
+        self.client.force_authenticate(user=self.user)
+        data = {
+            "place": "Home",
+            "time": "19:00:00",
+            "action": "Evening routine",
+            "time_to_complete": 120,
+            "periodicity": 1,
+            "related_habit": self.pleasant_habit.id,
+        }
+        response = self.client.post("/api/habits/habits/", data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Habit.objects.count(), 4)
+
+    def test_create_habit_with_reward(self):
+        """Тест создания привычки с вознаграждением"""
+        self.client.force_authenticate(user=self.user)
+        data = {
+            "place": "Home",
+            "time": "19:00:00",
+            "action": "Evening routine",
+            "time_to_complete": 120,
+            "periodicity": 1,
+            "reward": "Watch TV",
+        }
+        response = self.client.post("/api/habits/habits/", data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Habit.objects.count(), 4)
+
+    def test_habit_serializer_includes_all_fields(self):
+        """Тест что сериализатор включает все необходимые поля"""
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(f"/api/habits/habits/{self.habit.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        expected_fields = [
+            "id",
+            "user",
+            "place",
+            "time",
+            "action",
+            "is_pleasant",
+            "related_habit",
+            "periodicity",
+            "reward",
+            "time_to_complete",
+            "is_public",
+            "created_at",
+        ]
+
+        for field in expected_fields:
+            self.assertIn(field, response.data)
+
+    def test_habit_list_pagination(self):
+        """Тест пагинации списка привычек"""
+        self.client.force_authenticate(user=self.user)
+
+        # Создаем несколько привычек для тестирования пагинации
+        for i in range(5):
+            Habit.objects.create(
+                user=self.user,
+                place=f"Place {i}",
+                time="20:00:00",
+                action=f"Action {i}",
+                time_to_complete=120,
+                periodicity=1,
+            )
+
+        response = self.client.get("/api/habits/habits/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Проверяем структуру пагинации
+        if "results" in response.data:
+            self.assertIn("count", response.data)
+            self.assertIn("results", response.data)
+            self.assertEqual(len(response.data["results"]), 6)  # 5 новых + 1 из setUp
+        else:
+            # Если пагинации нет, проверяем общее количество
+            self.assertEqual(len(response.data), 6)
+
+    def test_habit_ordering(self):
+        """Тест сортировки привычек"""
+        self.client.force_authenticate(user=self.user)
+
+        # Создаем привычку с другим временем
+        morning_habit = Habit.objects.create(
+            user=self.user,
+            place="Morning",
+            time="07:00:00",
+            action="Morning routine",
+            time_to_complete=120,
+            periodicity=1,
+        )
+
+        response = self.client.get("/api/habits/habits/?ordering=time")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        if "results" in response.data:
+            habits = response.data["results"]
+            # Проверяем что привычки отсортированы по времени
+            times = [habit["time"] for habit in habits]
+            self.assertEqual(times, sorted(times))
+        else:
+            times = [habit.time for habit in response.data]
+            self.assertEqual(times, sorted(times))
