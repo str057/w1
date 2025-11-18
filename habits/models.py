@@ -35,7 +35,12 @@ class Habit(models.Model):
     periodicity = models.PositiveIntegerField(
         choices=PERIOD_CHOICES, default=1, verbose_name="Периодичность"
     )
-    reward = models.CharField(max_length=255, blank=True, verbose_name="Вознаграждение")
+    reward = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,  # Добавлено null=True
+        verbose_name="Вознаграждение",
+    )
     time_to_complete = models.PositiveIntegerField(
         verbose_name="Время на выполнение (секунды)"
     )
@@ -48,7 +53,7 @@ class Habit(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.user.email}: {self.action} в {self.time}"
+        return f"{self.action} at {self.time}"  # Исправлено строковое представление
 
     def clean(self):
         """Валидация данных перед сохранением"""
@@ -57,7 +62,7 @@ class Habit(models.Model):
         # 1. Исключить одновременный выбор связанной привычки и вознаграждения
         if self.related_habit and self.reward:
             error_msg = (
-                "Нельзя указывать одновременно связанную привычку " "и вознаграждение"
+                "Нельзя указывать одновременно связанную привычку и вознаграждение"
             )
             errors["reward"] = error_msg
             errors["related_habit"] = error_msg
@@ -76,7 +81,7 @@ class Habit(models.Model):
         # 4. У приятной привычки не может быть вознаграждения
         # или связанной привычки
         if self.is_pleasant:
-            if self.reward:
+            if self.reward:  # Проверяем не пустую строку или None
                 errors["reward"] = "У приятной привычки не может быть вознаграждения"
             if self.related_habit:
                 errors["related_habit"] = (
