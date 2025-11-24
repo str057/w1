@@ -1,53 +1,56 @@
-from django.db import models
+﻿from django.db import models
 from django.conf import settings
 
 
-
 class Course(models.Model):
-    title = models.CharField(max_length=150, verbose_name="Название")
-    preview = models.ImageField(
-        upload_to="courses/previews/", blank=True, null=True, verbose_name="Превью"
-    )
-    description = models.TextField(blank=True, null=True, verbose_name="Описание")
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        verbose_name="Владелец",
-        null=True,
-        blank=True,
-        related_name="courses",
-    )
+    """Course model"""
+
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = "Курс"
-        verbose_name_plural = "Курсы"
+        verbose_name = "Course"
+        verbose_name_plural = "Courses"
 
     def __str__(self):
         return self.title
 
 
 class Lesson(models.Model):
-    title = models.CharField(max_length=150, verbose_name="Название")
-    description = models.TextField(blank=True, null=True, verbose_name="Описание")
-    preview = models.ImageField(
-        upload_to="lessons/previews/", blank=True, null=True, verbose_name="Превью"
-    )
-    video_link = models.URLField(blank=True, null=True, verbose_name="Ссылка на видео")
-    course = models.ForeignKey(
-        Course, on_delete=models.CASCADE, related_name="lessons", verbose_name="Курс"
-    )
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        verbose_name="Владелец",
-        null=True,
-        blank=True,
-        related_name="lessons",
-    )
+    """Lesson model"""
+
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="lessons")
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    video_url = models.URLField(blank=True, null=True)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = "Урок"
-        verbose_name_plural = "Уроки"
+        verbose_name = "Lesson"
+        verbose_name_plural = "Lessons"
+        ordering = ["order"]
 
     def __str__(self):
-        return self.title
+        return f"{self.course.title} - {self.title}"
+
+
+class Subscription(models.Model):
+    """Subscription model for course access"""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    is_active = models.BooleanField(default=True)
+    subscribed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Subscription"
+        verbose_name_plural = "Subscriptions"
+        unique_together = ["user", "course"]
+
+    def __str__(self):
+        return f"{self.user.email} - {self.course.title}"
