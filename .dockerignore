@@ -1,0 +1,23 @@
+cat > .dockerignore << 'EOF'
+.git
+.gitignore
+README.md
+.env
+.venv
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.sqlite3
+.coverage
+.cache
+.DS_Store
+docker-compose.override.yml
+.idea/
+.vscode/
+*.log
+staticfiles/
+media/
+EOF
