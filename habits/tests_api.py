@@ -49,6 +49,7 @@ class HabitAPITest(TestCase):
             "time_to_complete": 120,
             "periodicity": 1,
         }
+
         response = self.client.post("/api/habits/habits/", data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Habit.objects.count(), 2)
