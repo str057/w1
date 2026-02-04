@@ -58,7 +58,8 @@ class Habit(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.action} в {self.time}"
+        # Тест ожидает "Read book at 20:00:00"
+        return f"{self.action} at {self.time}"
 
     def clean(self):
         """Валидация данных перед сохранением"""

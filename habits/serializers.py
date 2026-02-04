@@ -4,7 +4,9 @@ from django.core.exceptions import ValidationError
 
 
 class HabitSerializer(serializers.ModelSerializer):
-    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    # Проблема: HiddenField скрывает поле из вывода, а тесты ожидают его видеть
+    # Решение: Используем PrimaryKeyRelatedField для отображения
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = Habit
@@ -24,9 +26,18 @@ class HabitSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ("id", "user", "created_at")
 
+    def create(self, validated_data):
+        """Переопределяем create, чтобы установить текущего пользователя"""
+        # Получаем пользователя из контекста
+        user = self.context['request'].user
+        validated_data['user'] = user
+        return super().create(validated_data)
+
     def validate(self, data):
         """Валидация на уровне сериализатора"""
-        instance = Habit(**data)
+        # Создаем временный экземпляр с текущими данными
+        user = self.context.get('request').user if self.context.get('request') else None
+        instance = Habit(user=user, **data)
         try:
             instance.clean()
         except ValidationError as e:
