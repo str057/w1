@@ -3,7 +3,6 @@ from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
 
-
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -45,6 +44,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # Добавлено для Render
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -73,12 +73,26 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+# Настройки базы данных
+if 'DATABASE_URL' in os.environ:
+    # Для Render (PostgreSQL)
+    import dj_database_url
+
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=os.environ.get('DATABASE_URL'),
+            conn_max_age=600,
+            ssl_require=True
+        )
     }
-}
+else:
+    # Локальная разработка (SQLite)
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -105,12 +119,12 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"  # Для Render
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -127,14 +141,12 @@ REST_FRAMEWORK = {
     ],
 }
 
-
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "ROTATE_REFRESH_TOKENS": False,
     "BLACKLIST_AFTER_ROTATION": False,
 }
-
 
 CORS_ALLOW_ALL_ORIGINS = True  # Для разработки
 CORS_ALLOWED_ORIGINS = [
@@ -169,7 +181,6 @@ CORS_ALLOW_HEADERS = [
     "x-requested-with",
 ]
 
-
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
 CELERY_ACCEPT_CONTENT = ["json"]
@@ -178,7 +189,6 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "Europe/Moscow"
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 
-
 CELERY_BEAT_SCHEDULE = {
     "send-due-reminders": {
         "task": "habits.tasks.send_due_reminders",
@@ -186,14 +196,11 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
-
 TELEGRAM_BOT_TOKEN = os.getenv(
     "TELEGRAM_BOT_TOKEN", "8519736384:AAHKkXDWp9tf_wxmrPvkbW_1Jk7_0284Pc8"
 )
 
-
 AUTH_USER_MODEL = "users.User"
-
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Habit Tracker API",
@@ -204,23 +211,12 @@ SPECTACULAR_SETTINGS = {
     "SCHEMA_PATH_PREFIX": r"/api/",
 }
 
-
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
-
-
-# КОМПЛЕКСНОЕ ОТКЛЮЧЕНИЕ ВСЕХ SECURITY НАСТРОЕК ДЛЯ ТЕСТОВ
-SECURE_SSL_REDIRECT = False
-SESSION_COOKIE_SECURE = False
-CSRF_COOKIE_SECURE = False
-SECURE_BROWSER_XSS_FILTER = False
-SECURE_CONTENT_TYPE_NOSNIFF = False
-
-# УБИРАЕМ ВСЕ УСЛОВИЯ if not DEBUG
 
 # Logging
 LOGGING = {
@@ -261,7 +257,29 @@ LOGGING = {
     },
 }
 
-
 if os.name == "nt":
     CELERY_WORKER_POOL = "solo"
     CELERY_WORKER_CONCURRENCY = 1
+
+# ============ НАСТРОЙКИ ДЛЯ RENDER ============
+if 'RENDER' in os.environ:
+    # Безопасные настройки для продакшена
+    DEBUG = False
+
+    # Security settings
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+
+    # Разрешаем хост Render
+    RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+    if RENDER_EXTERNAL_HOSTNAME:
+        ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+
+    # Для разработки можно временно отключить строгие настройки
+    # DEBUG = True
+    # SECURE_SSL_REDIRECT = False
+    # SESSION_COOKIE_SECURE = False
+    # CSRF_COOKIE_SECURE = False
