@@ -83,7 +83,7 @@ class HabitAPITest(TestCase):
     def test_get_public_habits(self):
         """Тест получения публичных привычек"""
         self.client.force_authenticate(user=self.user)
-        response = self.client.get("/api/habits/public/")
+        response = self.client.get("/api/habits/habits/public/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Проверяем, что публичная привычка доступна
@@ -381,7 +381,7 @@ class HabitAPITest(TestCase):
         """Тест полей модели Habit"""
         self.assertEqual(self.habit.user, self.user)
         self.assertEqual(self.habit.place, "Home")
-        self.assertEqual(self.habit.time, "20:00:00")
+        self.assertEqual(str(self.habit.time), "20:00:00")
         self.assertEqual(self.habit.action, "Read book")
         self.assertEqual(self.habit.time_to_complete, 120)
         self.assertEqual(self.habit.periodicity, 1)
