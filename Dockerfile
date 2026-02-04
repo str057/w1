@@ -1,32 +1,37 @@
+# Dockerfile
+FROM python:3.10-slim
 
-FROM python:3.11-slim
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
 
+# Set work directory
 WORKDIR /app
 
-# Установка системных зависимостей
-RUN apt-get update && apt-get install -y \
-    gcc \
-    python3-dev \
-    netcat-traditional \
+# Install system dependencies
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        gcc \
+        postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Копирование requirements
+# Install Python dependencies
 COPY requirements.txt .
+RUN pip install --upgrade pip \
+    && pip install -r requirements.txt
 
-# Установка Python зависимостей
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Копирование проекта
+# Copy project
 COPY . .
 
-# Создание статических файлов
+# Collect static files
 RUN python manage.py collectstatic --noinput
 
-# Скрипт для запуска
-COPY entrypoint.sh .
-RUN chmod +x entrypoint.sh
+# Run as non-root user
+RUN useradd -m -u 1000 django \
+    && chown -R django:django /app
 
-EXPOSE 8000
+USER django
 
-CMD ["./entrypoint.sh"]
-EOF
+# Run gunicorn
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "your_project.wsgi:application"]

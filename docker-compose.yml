@@ -3,76 +3,64 @@ version: '3.8'
 services:
   db:
     image: postgres:15
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    ports:
+      - "5432:5432"
 
   redis:
     image: redis:7-alpine
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
+    ports:
+      - "6379:6379"
 
   web:
     build: .
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn your_project.wsgi:application --bind 0.0.0.0:8000"
     volumes:
+      - .:/app
       - static_volume:/app/staticfiles
-      - media_volume:/app/media
     environment:
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_NAME=${DB_NAME}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - REDIS_HOST=redis
-      - DEBUG=${DEBUG}
-      - SECRET_KEY=${SECRET_KEY}
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "8000:8000"
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_started
+      - db
+      - redis
 
   celery:
     build: .
     command: celery -A your_project worker --loglevel=info
     volumes:
-      - static_volume:/app/staticfiles
-      - media_volume:/app/media
+      - .:/app
     environment:
-      - DB_HOST=db
-      - DB_PORT=5432
-      - REDIS_HOST=redis
-      - DEBUG=${DEBUG}
-      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       - db
       - redis
+      - web
 
-  nginx:
-    build:
-      context: .
-      dockerfile: Dockerfile.nginx
+  celery-beat:
+    build: .
+    command: celery -A your_project beat --loglevel=info
     volumes:
-      - static_volume:/app/staticfiles
-      - media_volume:/app/media
-    ports:
-      - "80:80"
+      - .:/app
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
+      - db
+      - redis
       - web
 
 volumes:
   postgres_data:
-  redis_data:
   static_volume:
-  media_volume:
-EOF
