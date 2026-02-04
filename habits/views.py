@@ -33,7 +33,7 @@ class HabitViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """
         Возвращаем привычки:
-        - Для обычных запросов: только привычки текущего пользователя
+        - Для обычных запросов: ТОЛЬКО привычки текущего пользователя
         - Для публичного эндпоинта: только публичные привычки
         """
         user = self.request.user
@@ -42,10 +42,9 @@ class HabitViewSet(viewsets.ModelViewSet):
             # Для публичного эндпоинта показываем только публичные привычки
             return Habit.objects.filter(is_public=True)
 
-        # Для обычных запросов показываем привычки текущего пользователя
-        # ИЛИ публичные привычки других пользователей
+        # Для обычных запросов показываем ТОЛЬКО привычки текущего пользователя
         if user.is_authenticated:
-            return Habit.objects.filter(Q(user=user) | Q(is_public=True))
+            return Habit.objects.filter(user=user)
         return Habit.objects.none()
 
     def get_serializer_class(self):
@@ -74,17 +73,18 @@ class HabitViewSet(viewsets.ModelViewSet):
         """Переопределяем retrieve для проверки доступа к чужой привычке"""
         try:
             instance = self.get_object()
-            self.check_object_permissions(request, instance)
+
+            # Проверяем права доступа
+            if not (instance.user == request.user or instance.is_public):
+                return Response(
+                    {"detail": "У вас нет прав для доступа к этой привычке."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
             serializer = self.get_serializer(instance)
             return Response(serializer.data)
         except Habit.DoesNotExist:
             return Response(
                 {"detail": "Привычка не найдена."},
                 status=status.HTTP_404_NOT_FOUND
-            )
-        except PermissionDenied:
-            # Если привычка существует, но пользователь не владелец
-            return Response(
-                {"detail": "У вас нет прав для доступа к этой привычке."},
-                status=status.HTTP_403_FORBIDDEN
             )
