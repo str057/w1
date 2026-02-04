@@ -5,4 +5,5 @@
 
 -  API документация: [/api/docs/](https://your-app-name.up.railway.app/api/docs/)
 -  Публичные привычки: [/api/habits/public/](https://your-app-name.up.railway.app/api/habits/public/)
--  Админка: [/admin/](https://your-app-name.up.railway.app/admin/)
+-  Админка: [/admin/](https://you
+- r-app-name.up.railway.app/admin/)
