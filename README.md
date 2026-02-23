@@ -7,4 +7,4 @@
 -  Публичные привычки: [/api/habits/public/](https://your-app-name.up.railway.app/api/habits/public/)
 -  Админка: [/admin/](https://your-app-name.up.railway.app/admin/)
 
-##f3wf
+##f3wftr7657
