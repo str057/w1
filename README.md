@@ -33,4 +33,6 @@ venv\Scripts\activate  # Windows
 pip install -r requirements.txt
 
 # Run server
-python manage.py runserver
+python manage.py runserver 
+
+## 
