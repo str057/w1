@@ -15,10 +15,10 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
 
-      - name: Debug SSH key
+       - name: Debug SSH key
         run: |
-          echo "SSH key fingerprint (from secret):"
-          echo "${{ secrets.SERVER_SSH_KEY }}" | ssh-keygen -lf -
+          echo "SSH key fingerprint (from agent):"
+          ssh-add -l
 
       - name: Deploy with Docker Compose
         run: |
