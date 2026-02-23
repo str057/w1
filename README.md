@@ -1,9 +1,32 @@
+# Habit Tracker API
 
+API для трекера полезных привычек. Проект полностью контейнеризирован и развёрнут в Yandex Cloud с использованием Docker Compose и CI/CD через GitHub Actions.
 
-Приложение развернуто на Railway: [https://your-app-name.up.railway.app](https://your-app-name.up.railway.app)
+## 🌐 Деплой
 
+Проект доступен по адресу:  
+**http://89.169.166.9/api/**
 
--  API документация: [/api/docs/](https://your-app-name.up.railway.app/api/docs/)
--  Публичные привычки: [/api/habits/public/](https://your-app-name.up.railway.app/api/habits/public/)
--  Админка: [/admin/](https://you
-- r-app-name.up.railway.app/admin/)
+Документация API (Swagger):  
+**http://89.169.166.9/api/docs/** (если настроено)
+
+---
+
+## 🛠 Стек технологий
+
+- **Backend:** Django 5, Django REST Framework, JWT
+- **База данных:** PostgreSQL 15
+- **Кеш и брокер задач:** Redis 7, Celery
+- **Веб-сервер:** Nginx, Gunicorn
+- **Контейнеризация:** Docker, Docker Compose
+- **Облачная платформа:** Yandex Cloud (Ubuntu 22.04)
+- **CI/CD:** GitHub Actions
+
+---
+
+## 🚀 Локальный запуск
+
+### 1. Клонировать репозиторий
+```bash
+git clone https://github.com/str057/w1.git
+cd w1
