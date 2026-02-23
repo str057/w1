@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 User = get_user_model()
 
@@ -33,11 +34,20 @@ class Habit(models.Model):
         verbose_name="Связанная привычка",
     )
     periodicity = models.PositiveIntegerField(
-        choices=PERIOD_CHOICES, default=1, verbose_name="Периодичность"
+        choices=PERIOD_CHOICES,
+        default=1,
+        verbose_name="Периодичность",
+        validators=[MinValueValidator(1), MaxValueValidator(7)]
     )
-    reward = models.CharField(max_length=255, blank=True, verbose_name="Вознаграждение")
+    reward = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name="Вознаграждение",
+    )
     time_to_complete = models.PositiveIntegerField(
-        verbose_name="Время на выполнение (секунды)"
+        verbose_name="Время на выполнение (секунды)",
+        validators=[MinValueValidator(1), MaxValueValidator(120)]
     )
     is_public = models.BooleanField(default=False, verbose_name="Признак публичности")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
@@ -48,49 +58,37 @@ class Habit(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.user.email}: {self.action} в {self.time}"
+        # Тест ожидает "Read book at 20:00:00"
+        return f"{self.action} at {self.time}"
 
     def clean(self):
         """Валидация данных перед сохранением"""
         errors = {}
 
         # 1. Исключить одновременный выбор связанной привычки и вознаграждения
-        if self.related_habit and self.reward:
-            error_msg = (
-                "Нельзя указывать одновременно связанную привычку " "и вознаграждение"
-            )
-            errors["reward"] = error_msg
-            errors["related_habit"] = error_msg
+        if self.related_habit and self.reward and self.reward.strip():
+            errors["reward"] = "Нельзя указывать одновременно связанную привычку и вознаграждение"
+            errors["related_habit"] = "Нельзя указывать одновременно связанную привычку и вознаграждение"
 
-        # 2. Время выполнения должно быть не больше 120 секунд
-        if self.time_to_complete > 120:
-            errors["time_to_complete"] = (
-                "Время выполнения не может превышать 120 секунд"
-            )
-
-        # 3. В связанные привычки могут попадать только привычки
-        # с признаком приятной привычки
+        # 2. В связанные привычки могут попадать только привычки с признаком приятной привычки
         if self.related_habit and not self.related_habit.is_pleasant:
             errors["related_habit"] = "Связанная привычка должна быть приятной"
 
-        # 4. У приятной привычки не может быть вознаграждения
-        # или связанной привычки
+        # 3. У приятной привычки не может быть вознаграждения или связанной привычки
         if self.is_pleasant:
-            if self.reward:
+            if self.reward and self.reward.strip():
                 errors["reward"] = "У приятной привычки не может быть вознаграждения"
             if self.related_habit:
-                errors["related_habit"] = (
-                    "У приятной привычки не может быть связанной привычки"
-                )
+                errors["related_habit"] = "У приятной привычки не может быть связанной привычки"
 
-        # 5. Периодичность от 1 до 7 дней
-        if self.periodicity not in [1, 2, 3, 4, 5, 6, 7]:
-            errors["periodicity"] = "Периодичность должна быть от 1 до 7 дней"
+        # 4. Нельзя ссылаться на себя как на связанную привычку
+        if self.related_habit and self.related_habit.id == self.id:
+            errors["related_habit"] = "Привычка не может ссылаться на саму себя"
 
         if errors:
             raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
         """Вызываем валидацию перед сохранением"""
-        self.clean()
+        self.full_clean()
         super().save(*args, **kwargs)

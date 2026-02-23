@@ -21,4 +21,4 @@ env/
 Thumbs.db
 
 # Environment variables
-.env.example
+.env
