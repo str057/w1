@@ -2,22 +2,15 @@ version: '3.8'
 
 services:
   db:
-    image: postgres:15
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
 
@@ -27,15 +20,6 @@ services:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
     environment:
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_NAME=${DB_NAME}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - REDIS_HOST=redis
-      - DEBUG=${DEBUG}
-      - SECRET_KEY=${SECRET_KEY}
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
     depends_on:
       db:
         condition: service_healthy
@@ -44,35 +28,16 @@ services:
 
   celery:
     build: .
-    command: celery -A your_project worker --loglevel=info
     volumes:
-      - static_volume:/app/staticfiles
-      - media_volume:/app/media
     environment:
-      - DB_HOST=db
-      - DB_PORT=5432
-      - REDIS_HOST=redis
-      - DEBUG=${DEBUG}
-      - SECRET_KEY=${SECRET_KEY}
     depends_on:
-      - db
       - redis
 
-  nginx:
-    build:
-      context: .
-      dockerfile: Dockerfile.nginx
     volumes:
-      - static_volume:/app/staticfiles
-      - media_volume:/app/media
-    ports:
-      - "80:80"
     depends_on:
-      - web
 
 volumes:
   postgres_data:
   redis_data:
   static_volume:
   media_volume:
-EOF

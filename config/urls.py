@@ -5,8 +5,14 @@ from users.views import user_profile
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/habits/", include("habits.urls")),  # ← БЕЗ namespace
-    path("api/users/", include("users.urls")),
+    # Добавляем namespace для habits приложения
+    # Added namespace for habits app
+    path("api/habits/", include("habits.urls", namespace="habits")),
+
+    # Добавляем namespace для users приложения
+    # Added namespace for users app
+    path("api/users/", include("users.urls", namespace="users")),
+
     path("api/users/profile/", user_profile, name="user-profile"),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
