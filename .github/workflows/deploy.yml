@@ -31,4 +31,3 @@ jobs:
             docker system prune -f
           '
 
-          ""Fix debug step for SSH key
